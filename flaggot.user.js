@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Flaggot
 // @description Flag counter for 4chan
-// @version     1.0.1
+// @version     1.0.2
 // @author      dnsev
 // @namespace   dnsev
 // @include     http://boards.4chan.org/*
@@ -321,17 +321,21 @@
 		has_setup = true;
 
 		create_styles([ //{
-			".flaggot_header{position:fixed;left:0;max-width:100%;top:0;box-sizing:border-box;-moz-box-sizing:border-box;padding:0.5em 0.5em 0;margin:0;white-space:normal!important;pointer-events:none;}",
+			".flaggot_header{position:fixed;left:0;max-width:100%;top:0;box-sizing:border-box;-moz-box-sizing:border-box;padding:0.5em;margin:0;white-space:normal!important;pointer-events:none;transition:padding 0.25s ease-in-out 0s,font-size 0.25s ease-in-out 0s;}",
+			".flaggot_header.flaggot_disabled{padding:0;font-size:0.8em;}",
 			".flaggot_header.flaggot_header_standard{z-index:1;}",
 			".flaggot_header.flaggot_header_in_4chanx_header{position:absolute;top:100%;}",
 			".flaggot_header.flaggot_header_under_inline_header{top:2em;}",
-			".flaggot_table{display:table;max-width:100%;box-sizing:border-box;-moz-box-sizing:border-box;pointer-events:auto;}",
+			"div.flaggot_header_bg.post.reply{display:block!important;margin:0!important;padding:0!important;border-radius:0!important;border:0!important;position:absolute;left:0;top:0;bottom:0;width:0!important;opacity:0!important;transition:width 0s ease-in-out 0.25s,opacity 0.25s linear 0s;overflow:visible!important;}",
+			".flaggot_header:not(.flaggot_disabled):hover>div.flaggot_header_bg.post.reply{width:100%!important;opacity:0.9!important;transition:width 0.25s ease-in-out 0s,opacity 0s linear 0s;}",
+			".flaggot_table{position:relative;display:table;max-width:100%;box-sizing:border-box;-moz-box-sizing:border-box;pointer-events:auto;}",
 			".flaggot_row{display:table-row;}",
 			".flaggot_cell{display:table-cell;vertical-align:top;width:100%;}",
 			".flaggot_cell:first-of-type{width:0;white-space:nowrap!important;}",
 			".flaggot_flags{}",
 			".flaggot_header.flaggot_disabled .flaggot_flags{display:none;}",
-			".flaggot_enabled,.flaggot_enabled+.riceCheck{vertical-align:middle;padding:0;margin:0 0.25em 0 0;}",
+			".flaggot_enabled,.flaggot_enabled+.riceCheck{vertical-align:middle;padding:0;margin:0 0.25em 0 0;transition:margin 0.25s ease-in-out 0s;}",
+			".flaggot_header.flaggot_disabled .flaggot_enabled,.flaggot_header.flaggot_disabled .flaggot_enabled+.riceCheck{margin-right:0;}",
 			".flaggot_enabled+.riceCheck+.riceCheck{display:none;}",
 			".flaggot_label{margin:0;padding:0;cursor:pointer;}",
 			".flaggot_label_text,.flaggot_label_text_enabled{font-weight:bold;vertical-align:middle;}",
@@ -340,6 +344,7 @@
 			".flaggot_enabled:checked~.flaggot_label_text_enabled{display:inline;}",
 			".flaggot_stat{display:inline-block;text-align:center;vertical-align:top;margin:0 0 0 0.125em;border:1px solid rgba(0,0,0,0);cursor:pointer;border-radius:0.125em;}",
 			".flaggot_stat:hover{background-color:rgba(0,0,0,0.125);border-color:rgba(255,255,255,0.125);}",
+			".flaggot_stat_inner{display:block;vertical-align:center;margin-bottom:-0.5em;}",
 			".flaggot_flag{margin:0 0.375em;}",
 			".flaggot_count{display:inline-block;position:relative;top:-0.5em;font-size:0.8em;}",
 		].join("")); //}
@@ -354,6 +359,8 @@
 			n1, n2;
 
 		node_header = header;
+
+		$.add(header, $.node("div", "flaggot_header_bg post reply"));
 
 		$.add(header, table);
 		$.add(table, row);
@@ -398,15 +405,16 @@
 		}
 	};
 	var create_flag_stat = function (type, title, key) {
-		var n, c;
-		n = $.node("span", "flaggot_stat");
-		n.title = title;
-		n.addEventListener("click", function (event) { return on_flag_click(event, key); }, false);
-		$.add(n, $.node("span", "flaggot_flag flag flag-" + type));
-		$.add(n, $.node_simple("br"));
-		$.add(n, c = $.node("span", "flaggot_count"));
+		var n1, n2, c;
+		n1 = $.node("span", "flaggot_stat");
+		n1.title = title;
+		n1.addEventListener("click", function (event) { return on_flag_click(event, key); }, false);
+		$.add(n1, n2 = $.node("span", "flaggot_stat_inner"));
+		$.add(n2, $.node("span", "flaggot_flag flag flag-" + type));
+		$.add(n2, $.node_simple("br"));
+		$.add(n2, c = $.node("span", "flaggot_count"));
 		return {
-			container: n,
+			container: n1,
 			count: c
 		};
 	};
