@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Flaggot
 // @description Flag counter for 4chan
-// @version     1.0.2
+// @version     1.0.2.1
 // @author      dnsev
 // @namespace   dnsev
 // @include     http://boards.4chan.org/*
@@ -429,11 +429,13 @@
 	};
 	var update_flag_order = function (container) {
 		var nodes = Array.prototype.slice.call(container.children, 0),
+			frag = document.createDocumentFragment(),
 			i, ii;
 		nodes.sort(update_flag_order_sort_fn);
 		for (i = 0, ii = nodes.length; i < ii; ++i) {
-			container.appendChild(nodes[i]);
+			frag.appendChild(nodes[i]);
 		}
+		container.appendChild(frag);
 	};
 
 	var highlight_post = function (node, header_height) {
