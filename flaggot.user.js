@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name        flaggot
+// @name        Flaggot
 // @description Flag counter for 4chan
-// @version     1.0
+// @version     1.0.1
 // @author      dnsev
 // @namespace   dnsev
 // @include     http://boards.4chan.org/*
@@ -158,19 +158,25 @@
 		// Update
 		var posts = post_queue.splice(0, 25),
 			ii = posts.length,
-			flag_data, updates, i, c;
+			any = false,
+			flag_data, updates, i, k, c;
 		if (ii === 0) return;
 
-		updates = [];
+		updates = {};
 		for (i = 0; i < ii; ++i) {
 			process_post(posts[i], updates);
 		}
-		for (i = 0, ii = updates.length; i < ii; ++i) {
-			flag_data = updates[i];
-			c = flag_data.posts.length;
-
-			set_order(flag_data.nodes.container, -c);
-			flag_data.nodes.count.textContent = c;
+		for (k in updates) {
+			if (Object.prototype.hasOwnProperty.call(updates, k)) {
+				any = true;
+				flag_data = updates[k];
+				c = flag_data.posts.length;
+				flag_data.nodes.count.textContent = c;
+				flag_data.nodes.container.setAttribute("data-count", c);
+			}
+		}
+		if (any) {
+			update_flag_order(node_flag_container);
 		}
 
 		// Continue
@@ -203,7 +209,7 @@
 				type: flag[0],
 				name: flag[1],
 				posts: [ id ],
-				nodes: create_flag_stat(flag[0], flag[1], f, 1)
+				nodes: create_flag_stat(flag[0], flag[1], f)
 			};
 			node_flag_container.appendChild(flag_data.nodes.container);
 		}
@@ -211,9 +217,8 @@
 			flag_data = flags[f];
 			flag_data.posts.push(id);
 			c = flag_data.posts.length;
-
-			updates.push(flag_data);
 		}
+		updates[f] = flag_data;
 	};
 
 	var get_id_from_post_container = function (container) {
@@ -316,20 +321,21 @@
 		has_setup = true;
 
 		create_styles([ //{
-			".flaggot_header{position:fixed;left:0;right:0;top:0;padding:0.5em 0.5em 0;margin:0;white-space:normal!important;pointer-events:none;}",
+			".flaggot_header{position:fixed;left:0;max-width:100%;top:0;box-sizing:border-box;-moz-box-sizing:border-box;padding:0.5em 0.5em 0;margin:0;white-space:normal!important;pointer-events:none;}",
 			".flaggot_header.flaggot_header_standard{z-index:1;}",
 			".flaggot_header.flaggot_header_in_4chanx_header{position:absolute;top:100%;}",
 			".flaggot_header.flaggot_header_under_inline_header{top:2em;}",
-			".flaggot_table{display:table;max-width:100%;pointer-events:auto;}",
+			".flaggot_table{display:table;max-width:100%;box-sizing:border-box;-moz-box-sizing:border-box;pointer-events:auto;}",
 			".flaggot_row{display:table-row;}",
 			".flaggot_cell{display:table-cell;vertical-align:top;width:100%;}",
-			".flaggot_cell:first-of-type{width:0;white-space:nowrap;}",
-			".flaggot_flags{display:-webkit-flex;display:flex;}",
-			".flaggot_flags.flaggot_flags_hidden{display:none;}",
+			".flaggot_cell:first-of-type{width:0;white-space:nowrap!important;}",
+			".flaggot_flags{}",
+			".flaggot_header.flaggot_disabled .flaggot_flags{display:none;}",
 			".flaggot_enabled,.flaggot_enabled+.riceCheck{vertical-align:middle;padding:0;margin:0 0.25em 0 0;}",
 			".flaggot_enabled+.riceCheck+.riceCheck{display:none;}",
 			".flaggot_label{margin:0;padding:0;cursor:pointer;}",
 			".flaggot_label_text,.flaggot_label_text_enabled{font-weight:bold;vertical-align:middle;}",
+			".flaggot_header.flaggot_disabled .flaggot_label_text{opacity:0.375;}",
 			".flaggot_label_text_enabled{display:none;}",
 			".flaggot_enabled:checked~.flaggot_label_text_enabled{display:inline;}",
 			".flaggot_stat{display:inline-block;text-align:center;vertical-align:top;margin:0 0 0 0.125em;border:1px solid rgba(0,0,0,0);cursor:pointer;border-radius:0.125em;}",
@@ -391,25 +397,35 @@
 			$.add(document.body, node_header);
 		}
 	};
-	var create_flag_stat = function (type, title, key, count) {
+	var create_flag_stat = function (type, title, key) {
 		var n, c;
 		n = $.node("span", "flaggot_stat");
 		n.title = title;
-		set_order(n, -count);
 		n.addEventListener("click", function (event) { return on_flag_click(event, key); }, false);
 		$.add(n, $.node("span", "flaggot_flag flag flag-" + type));
 		$.add(n, $.node_simple("br"));
-		$.add(n, c = $.node("span", "flaggot_count", "" + count));
+		$.add(n, c = $.node("span", "flaggot_count"));
 		return {
 			container: n,
 			count: c
 		};
 	};
 
-	var set_order = function (node, order) {
-		node.style.order = order;
-		node.style.mozOrder = order;
-		node.style.webkitOrder = order;
+	var update_flag_order_sort_fn = function (n1, n2) {
+		var n1c = (n1.nodeType === Node.ELEMENT_NODE) ? (parseInt(n1.getAttribute("data-count"), 10) || 0) : -1,
+			n2c = (n2.nodeType === Node.ELEMENT_NODE) ? (parseInt(n2.getAttribute("data-count"), 10) || 0) : -1;
+
+		if (n1c < n2c) return 1;
+		if (n1c > n2c) return -1;
+		return 0;
+	};
+	var update_flag_order = function (container) {
+		var nodes = Array.prototype.slice.call(container.children, 0),
+			i, ii;
+		nodes.sort(update_flag_order_sort_fn);
+		for (i = 0, ii = nodes.length; i < ii; ++i) {
+			container.appendChild(nodes[i]);
+		}
 	};
 
 	var highlight_post = function (node, header_height) {
@@ -441,10 +457,10 @@
 	var on_enabled_change = function (node, save) {
 		is_enabled = !!node.checked;
 		if (is_enabled) {
-			node_flag_container.classList.remove("flaggot_flags_hidden");
+			node_header.classList.remove("flaggot_disabled");
 		}
 		else {
-			node_flag_container.classList.add("flaggot_flags_hidden");
+			node_header.classList.add("flaggot_disabled");
 		}
 
 		if (save) {
