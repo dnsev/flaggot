@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Flaggot
 // @description Flag counter for 4chan
-// @version     1.0.2.1
+// @version     1.0.3
 // @author      dnsev
 // @namespace   dnsev
 // @include     http://boards.4chan.org/*
@@ -137,18 +137,22 @@
 
 
 	var is_enabled = true;
+	var is_showing_unique = false;
 	var node_header = null;
 	var node_flag_container = null;
 	var node_last_highlighted = null;
+	var node_mode_status = null;
 	var post_queue = null;
 	var post_queue_timer = null;
 	var has_setup = false;
+	var any_user_ids = false;
 	var flags = {};
 	var posts = {};
 
 
 	var load_settings = function () {
 		is_enabled = GM_getValue("flaggot_enabled", true) || false;
+		is_showing_unique = GM_getValue("flaggot_showing_unique", false) || false;
 	};
 
 
@@ -158,25 +162,20 @@
 		// Update
 		var posts = post_queue.splice(0, 25),
 			ii = posts.length,
-			any = false,
-			flag_data, updates, i, k, c;
+			any_user_ids_pre = any_user_ids,
+			updates, i;
 		if (ii === 0) return;
 
 		updates = {};
 		for (i = 0; i < ii; ++i) {
 			process_post(posts[i], updates);
 		}
-		for (k in updates) {
-			if (Object.prototype.hasOwnProperty.call(updates, k)) {
-				any = true;
-				flag_data = updates[k];
-				c = flag_data.posts.length;
-				flag_data.nodes.count.textContent = c;
-				flag_data.nodes.container.setAttribute("data-count", c);
-			}
-		}
-		if (any) {
+
+		if (update_flag_counting(updates)) {
 			update_flag_order(node_flag_container);
+			if (!any_user_ids_pre && any_user_ids) {
+				update_display_status();
+			}
 		}
 
 		// Continue
@@ -186,7 +185,7 @@
 		}, 250);
 	};
 	var process_post = function (post, updates) {
-		var id, flag, flag_data, f, c;
+		var uid, id, flag, flag_data, f;
 
 		if (
 			(id = get_id_from_post_container(post)) === null ||
@@ -209,6 +208,7 @@
 				type: flag[0],
 				name: flag[1],
 				posts: [ id ],
+				user_ids: {},
 				nodes: create_flag_stat(flag[0], flag[1], f)
 			};
 			node_flag_container.appendChild(flag_data.nodes.container);
@@ -216,11 +216,27 @@
 		else {
 			flag_data = flags[f];
 			flag_data.posts.push(id);
-			c = flag_data.posts.length;
 		}
+
+		// Get poster ID
+		uid = get_user_id_from_post_container(post);
+		if (uid !== null) {
+			any_user_ids = true;
+			if (Object.prototype.hasOwnProperty.call(flag_data.user_ids, uid)) {
+				flag_data.user_ids[uid].push(id);
+			}
+			else {
+				flag_data.user_ids[uid] = [ id ];
+			}
+		}
+
 		updates[f] = flag_data;
 	};
 
+	var get_user_id_from_post_container = function (container) {
+		var n = $(".nameBlock>.posteruid>.hand", container);
+		return (n === null ? null : n.textContent.trim());
+	};
 	var get_id_from_post_container = function (container) {
 		var id = container.id,
 			n, m;
@@ -371,13 +387,14 @@
 		n2.checked = is_enabled;
 		n2.addEventListener("change", function () { return on_enabled_change(this, true); }, false);
 		$.add(n1, $.node("span", "riceCheck"));
-		$.add(n1, $.node("span", "flaggot_label_text", "Flags"));
+		$.add(n1, node_mode_status = $.node("span", "flaggot_label_text"));
 		$.add(n1, $.node("span", "flaggot_label_text_enabled", ":"));
 
 		$.add(row, cell = $.node("div", "flaggot_cell"));
 		$.add(cell, n1 = $.node("div", "flaggot_flags"));
 		node_flag_container = n1;
-		on_enabled_change(n2, false);
+
+		update_display_status();
 
 		add_header();
 	};
@@ -438,6 +455,31 @@
 		container.appendChild(frag);
 	};
 
+	var update_flag_counting = function (obj) {
+		var any = false,
+			flag_data, k, c;
+		for (k in obj) {
+			if (Object.prototype.hasOwnProperty.call(obj, k)) {
+				any = true;
+				flag_data = obj[k];
+				c = (is_showing_unique && any_user_ids) ? Object.keys(flag_data.user_ids).length : flag_data.posts.length;
+				flag_data.nodes.count.textContent = c;
+				flag_data.nodes.container.setAttribute("data-count", c);
+			}
+		}
+		return any;
+	};
+	var update_display_status = function () {
+		if (is_enabled) {
+			node_header.classList.remove("flaggot_disabled");
+			node_mode_status.textContent = (is_showing_unique && any_user_ids) ? "Unique" : "Flags";
+		}
+		else {
+			node_header.classList.add("flaggot_disabled");
+			node_mode_status.textContent = "Flags";
+		}
+	};
+
 	var highlight_post = function (node, header_height) {
 		var y = (window.pageYOffset || document.documentElement.scrollTop || 0),
 			r = node.getBoundingClientRect();
@@ -465,16 +507,32 @@
 	};
 
 	var on_enabled_change = function (node, save) {
-		is_enabled = !!node.checked;
 		if (is_enabled) {
-			node_header.classList.remove("flaggot_disabled");
+			if (is_showing_unique) {
+				is_showing_unique = false;
+				is_enabled = false;
+			}
+			else {
+				if (any_user_ids) {
+					is_showing_unique = true;
+				}
+				else {
+					is_enabled = false;
+				}
+			}
+			update_flag_counting(flags);
 		}
 		else {
-			node_header.classList.add("flaggot_disabled");
+			is_enabled = true;
+			is_showing_unique = false;
 		}
+
+		node.checked = is_enabled;
+		update_display_status();
 
 		if (save) {
 			GM_setValue("flaggot_enabled", is_enabled);
+			GM_setValue("flaggot_showing_unique", is_showing_unique);
 			if (is_enabled) start_post_queue();
 		}
 	};
