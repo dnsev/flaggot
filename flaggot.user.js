@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name        Flaggot
 // @description Flag counter for 4chan
-// @version     1.0.3
+// @version     1.0.4
 // @author      dnsev
 // @namespace   dnsev
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
+// @include     http://boards.4channel.org/*
+// @include     https://boards.4channel.org/*
 // @grant       GM_setValue
 // @grant       GM_getValue
 // @homepage    https://github.com/dnsev/flaggot
